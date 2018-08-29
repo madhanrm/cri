@@ -31,7 +31,6 @@ import (
 	"github.com/containerd/typeurl"
 	"github.com/davecgh/go-spew/spew"
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/opencontainers/runc/libcontainer/devices"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
 	"github.com/opencontainers/runtime-tools/validate"
@@ -527,69 +526,6 @@ func clearReadOnly(m *runtimespec.Mount) {
 		}
 	}
 	m.Options = append(opt, "rw")
-}
-
-// addDevices set device mapping without privilege.
-func (c *criService) addOCIDevices(g *generate.Generator, devs []*runtime.Device) error {
-	spec := g.Config
-	for _, device := range devs {
-		path, err := c.os.ResolveSymbolicLink(device.HostPath)
-		if err != nil {
-			return err
-		}
-		dev, err := devices.DeviceFromPath(path, device.Permissions)
-		if err != nil {
-			return err
-		}
-		rd := runtimespec.LinuxDevice{
-			Path:  device.ContainerPath,
-			Type:  string(dev.Type),
-			Major: dev.Major,
-			Minor: dev.Minor,
-			UID:   &dev.Uid,
-			GID:   &dev.Gid,
-		}
-		g.AddDevice(rd)
-		spec.Linux.Resources.Devices = append(spec.Linux.Resources.Devices, runtimespec.LinuxDeviceCgroup{
-			Allow:  true,
-			Type:   string(dev.Type),
-			Major:  &dev.Major,
-			Minor:  &dev.Minor,
-			Access: dev.Permissions,
-		})
-	}
-	return nil
-}
-
-// addDevices set device mapping with privilege.
-func setOCIDevicesPrivileged(g *generate.Generator) error {
-	spec := g.Config
-	hostDevices, err := devices.HostDevices()
-	if err != nil {
-		return err
-	}
-	for _, hostDevice := range hostDevices {
-		rd := runtimespec.LinuxDevice{
-			Path:  hostDevice.Path,
-			Type:  string(hostDevice.Type),
-			Major: hostDevice.Major,
-			Minor: hostDevice.Minor,
-			UID:   &hostDevice.Uid,
-			GID:   &hostDevice.Gid,
-		}
-		if hostDevice.Major == 0 && hostDevice.Minor == 0 {
-			// Invalid device, most likely a symbolic link, skip it.
-			continue
-		}
-		g.AddDevice(rd)
-	}
-	spec.Linux.Resources.Devices = []runtimespec.LinuxDeviceCgroup{
-		{
-			Allow:  true,
-			Access: "rwm",
-		},
-	}
-	return nil
 }
 
 // addOCIBindMounts adds bind mounts.

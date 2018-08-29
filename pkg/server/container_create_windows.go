@@ -20,6 +20,8 @@ package server
 
 import (
 	"github.com/containerd/containerd/oci"
+	"github.com/opencontainers/runtime-tools/generate"
+	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 )
 
 // generateSeccompSpecOpts unsupported on Windows.
@@ -30,4 +32,16 @@ func generateSeccompSpecOpts(seccompProf string, privileged, seccompEnabled bool
 // generateApparmorSpecOpts unsupported on Windows.
 func generateApparmorSpecOpts(apparmorProf string, privileged, apparmorEnabled bool) (oci.SpecOpts, error) {
 	return nil, nil
+}
+
+// addDevices set device mapping without privilege.
+func (c *criService) addOCIDevices(g *generate.Generator, devs []*runtime.Device) error {
+	// TODO: JTERRY75 - WCOW/LCOW support
+	return nil
+}
+
+// addDevices set device mapping with privilege.
+func setOCIDevicesPrivileged(g *generate.Generator) error {
+	// TODO: JTERRY75 - WCOW/LCOW support
+	return nil
 }
