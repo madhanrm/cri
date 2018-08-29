@@ -25,7 +25,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
-	"golang.org/x/sys/unix"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 
 	containerstore "github.com/containerd/cri/pkg/store/container"
@@ -64,7 +63,7 @@ func (c *criService) stopContainer(ctx context.Context, container containerstore
 	}
 
 	if timeout > 0 {
-		stopSignal := unix.SIGTERM
+		stopSignal := SysTermSignal
 		image, err := c.imageStore.Get(container.ImageRef)
 		if err != nil {
 			// NOTE(random-liu): It's possible that the container is stopped,
@@ -114,7 +113,7 @@ func (c *criService) stopContainer(ctx context.Context, container containerstore
 	// Event handler will Delete the container from containerd after it handles the Exited event.
 	logrus.Infof("Kill container %q", id)
 	if task != nil {
-		if err = task.Kill(ctx, unix.SIGKILL, containerd.WithKillAll); err != nil {
+		if err = task.Kill(ctx, SysKillSignal, containerd.WithKillAll); err != nil {
 			if !errdefs.IsNotFound(err) {
 				return errors.Wrapf(err, "failed to kill container %q", id)
 			}

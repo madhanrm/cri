@@ -26,9 +26,6 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/plugin"
 	cni "github.com/containerd/go-cni"
-	runcapparmor "github.com/opencontainers/runc/libcontainer/apparmor"
-	runcseccomp "github.com/opencontainers/runc/libcontainer/seccomp"
-	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -108,8 +105,6 @@ func NewCRIService(config criconfig.Config, client *containerd.Client) (CRIServi
 	c := &criService{
 		config:             config,
 		client:             client,
-		apparmorEnabled:    runcapparmor.IsEnabled(),
-		seccompEnabled:     runcseccomp.IsEnabled(),
 		os:                 osinterface.RealOS{},
 		sandboxStore:       sandboxstore.NewStore(),
 		containerStore:     containerstore.NewStore(),
@@ -120,13 +115,9 @@ func NewCRIService(config criconfig.Config, client *containerd.Client) (CRIServi
 		initialized:        atomic.NewBool(false),
 	}
 
-	if c.config.EnableSelinux {
-		if !selinux.GetEnabled() {
-			logrus.Warn("Selinux is not supported")
-		}
-	} else {
-		selinux.SetDisabled()
-	}
+	c.apparmorEnabled = isApparmorEnabled()
+	c.seccompEnabled = isSeccompEnabled()
+	doSelinux(c.config.EnableSelinux)
 
 	if client.SnapshotService(c.config.ContainerdConfig.Snapshotter) == nil {
 		return nil, errors.Errorf("failed to find snapshotter %q", c.config.ContainerdConfig.Snapshotter)

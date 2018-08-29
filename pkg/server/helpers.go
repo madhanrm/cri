@@ -35,8 +35,6 @@ import (
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
-	"github.com/opencontainers/selinux/go-selinux"
-	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
@@ -360,27 +358,6 @@ func getImageInfo(ctx context.Context, image containerd.Image) (*imageInfo, erro
 		size:      size,
 		imagespec: ociimage,
 	}, nil
-}
-
-func initSelinuxOpts(selinuxOpt *runtime.SELinuxOption) (string, string, error) {
-	if selinuxOpt == nil {
-		return "", "", nil
-	}
-
-	// Should ignored selinuxOpts if they are incomplete.
-	if selinuxOpt.GetUser() == "" ||
-		selinuxOpt.GetRole() == "" ||
-		selinuxOpt.GetType() == "" ||
-		selinuxOpt.GetLevel() == "" {
-		return "", "", nil
-	}
-
-	labelOpts := fmt.Sprintf("%s:%s:%s:%s",
-		selinuxOpt.GetUser(),
-		selinuxOpt.GetRole(),
-		selinuxOpt.GetType(),
-		selinuxOpt.GetLevel())
-	return label.InitLabels(selinux.DupSecOpt(labelOpts))
 }
 
 // isInCRIMounts checks whether a destination is in CRI mount list.
