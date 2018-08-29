@@ -23,9 +23,6 @@ import (
 	"time"
 
 	_ "github.com/containerd/containerd/diff/walking/plugin"
-	_ "github.com/containerd/containerd/gc/scheduler"
-	_ "github.com/containerd/containerd/metrics/cgroups"
-	_ "github.com/containerd/containerd/runtime/v1/linux"
 	_ "github.com/containerd/containerd/services/containers"
 	_ "github.com/containerd/containerd/services/content"
 	_ "github.com/containerd/containerd/services/diff"
@@ -38,7 +35,6 @@ import (
 	_ "github.com/containerd/containerd/services/snapshots"
 	_ "github.com/containerd/containerd/services/tasks"
 	_ "github.com/containerd/containerd/services/version"
-	_ "github.com/containerd/containerd/snapshots/overlay"
 	_ "github.com/containerd/cri"
 
 	"github.com/containerd/containerd/cmd/containerd/command"
