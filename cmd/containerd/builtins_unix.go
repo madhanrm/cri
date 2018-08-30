@@ -19,7 +19,6 @@ limitations under the License.
 package main
 
 import (
-	_ "github.com/containerd/containerd/gc/scheduler"
 	_ "github.com/containerd/containerd/metrics/cgroups"
 	_ "github.com/containerd/containerd/runtime/v1/linux"
 )
