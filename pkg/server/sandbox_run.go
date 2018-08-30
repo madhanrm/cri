@@ -33,7 +33,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
-	"golang.org/x/sys/unix"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 
 	"github.com/containerd/cri/pkg/annotations"
@@ -479,7 +478,7 @@ func (c *criService) setupSandboxFiles(id string, config *runtime.PodSandboxConf
 			return errors.Wrap(err, "failed to create sandbox shm")
 		}
 		shmproperty := fmt.Sprintf("mode=1777,size=%d", defaultShmSize)
-		if err := c.os.Mount("shm", sandboxDevShm, "tmpfs", uintptr(unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_NODEV), shmproperty); err != nil {
+		if err := c.os.Mount("shm", sandboxDevShm, "tmpfs", uintptr(SysMS_NOEXEC|SysMS_NOSUID|SysMS_NODEV), shmproperty); err != nil {
 			return errors.Wrap(err, "failed to mount sandbox shm")
 		}
 	}

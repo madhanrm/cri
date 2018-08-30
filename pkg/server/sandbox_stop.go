@@ -26,7 +26,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
-	"golang.org/x/sys/unix"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 
 	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"
@@ -109,7 +108,7 @@ func (c *criService) stopSandboxContainer(ctx context.Context, sandbox sandboxst
 	}
 
 	// Kill the sandbox container.
-	err = task.Kill(ctx, unix.SIGKILL, containerd.WithKillAll)
+	err = task.Kill(ctx, SysKillSignal, containerd.WithKillAll)
 	if err != nil && !errdefs.IsNotFound(err) {
 		return errors.Wrap(err, "failed to kill sandbox container")
 	}
