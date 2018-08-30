@@ -34,12 +34,10 @@ import (
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
 	"github.com/opencontainers/runtime-tools/validate"
-	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/net/context"
-	"golang.org/x/sys/unix"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 
 	"github.com/containerd/cri/pkg/annotations"
@@ -592,8 +590,8 @@ func (c *criService) addOCIBindMounts(g *generate.Generator, mounts []*runtime.M
 		}
 
 		if mount.GetSelinuxRelabel() {
-			if err := label.Relabel(src, mountLabel, true); err != nil && err != unix.ENOTSUP {
-				return errors.Wrapf(err, "relabel %q with %q failed", src, mountLabel)
+			if err := doSelinuxRelable(src, mountLabel, true); err != nil {
+				return err
 			}
 		}
 		g.AddMount(runtimespec.Mount{

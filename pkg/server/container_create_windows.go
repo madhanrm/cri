@@ -45,3 +45,8 @@ func setOCIDevicesPrivileged(g *generate.Generator) error {
 	// TODO: JTERRY75 - WCOW/LCOW support
 	return nil
 }
+
+// doSelinuxRelabel not supported on Windows.
+func doSelinuxRelable(path string, fileLabel string, shared bool) error {
+	return nil
+}

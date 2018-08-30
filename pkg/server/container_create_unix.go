@@ -27,6 +27,7 @@ import (
 	"github.com/opencontainers/runc/libcontainer/devices"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
+	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 )
@@ -155,6 +156,13 @@ func setOCIDevicesPrivileged(g *generate.Generator) error {
 			Allow:  true,
 			Access: "rwm",
 		},
+	}
+	return nil
+}
+
+func doSelinuxRelable(path string, fileLabel string, shared bool) error {
+	if err := label.Relabel(path, fileLabel, shared); err != nil && err != unix.ENOTSUP {
+		return errors.Wrapf(err, "relabel %q with %q failed", path, fileLabel)
 	}
 	return nil
 }
