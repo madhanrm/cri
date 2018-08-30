@@ -18,6 +18,7 @@ package cri
 
 import (
 	"flag"
+	"os"
 	"path/filepath"
 
 	"github.com/containerd/containerd"
@@ -45,11 +46,19 @@ import (
 // TODO(random-liu): Use github.com/pkg/errors for our errors.
 // Register CRI service plugin
 func init() {
-	config := criconfig.DefaultConfig()
+	var config *criconfig.PluginConfig
+	if os.Getenv("cri-windows-lcow") != "" {
+		c := criconfig.DefaultLcowConfig()
+		config = &c
+	} else {
+		c := criconfig.DefaultConfig()
+		config = &c
+	}
+
 	plugin.Register(&plugin.Registration{
 		Type:   plugin.GRPCPlugin,
 		ID:     "cri",
-		Config: &config,
+		Config: config,
 		Requires: []plugin.Type{
 			plugin.ServicePlugin,
 		},
