@@ -295,7 +295,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 
 		var taskOpts []containerd.NewTaskOpts
 		if c.config.NoPivot {
-			taskOpts = append(taskOpts, containerd.WithNoPivotRoot)
+			taskOpts = addOptWithNoPivotRoot(taskOpts)
 		}
 		// We don't need stdio for sandbox container.
 		task, err := container.NewTask(ctx, containerdio.NullIO, taskOpts...)
