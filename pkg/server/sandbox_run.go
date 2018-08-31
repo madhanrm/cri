@@ -170,7 +170,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	sandboxLabels := buildLabels(config.Labels, containerKindSandbox)
 
 	opts := []containerd.NewContainerOpts{
-		containerd.WithSnapshotter(c.config.ContainerdConfig.Snapshotter),
+		containerd.WithSnapshotter(c.getDefaultSnapshotterForSandbox(config)),
 		customopts.WithNewSnapshot(id, image.Image),
 		containerd.WithSpec(spec, specOpts...),
 		containerd.WithContainerLabels(sandboxLabels),

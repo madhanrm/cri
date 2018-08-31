@@ -23,6 +23,7 @@ import (
 	runcseccomp "github.com/opencontainers/runc/libcontainer/seccomp"
 	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/sirupsen/logrus"
+	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 )
 
 // isApparmorEnabled is not supported on Windows.
@@ -43,4 +44,8 @@ func doSelinux(enable bool) {
 	} else {
 		selinux.SetDisabled()
 	}
+}
+
+func (c *criService) getDefaultSnapshotterForSandbox(_ *runtime.PodSandboxConfig) string {
+	return c.config.ContainerdConfig.Snapshotter
 }

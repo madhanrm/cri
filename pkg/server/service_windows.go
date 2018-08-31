@@ -18,6 +18,8 @@ limitations under the License.
 
 package server
 
+import runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+
 // isApparmorEnabled is not supported on Windows.
 func isApparmorEnabled() bool {
 	return false
@@ -30,4 +32,15 @@ func isSeccompEnabled() bool {
 
 // doSelinux is not supported on Windows.
 func doSelinux(enable bool) {
+}
+
+func (c *criService) getDefaultSnapshotterForSandbox(cfg *runtime.PodSandboxConfig) string {
+	snapshotter := c.config.ContainerdConfig.Snapshotter
+	if cfg != nil {
+		plat, ok := cfg.Labels["sandbox-platform"]
+		if ok && plat == "linux/amd64" {
+			snapshotter = "windows-lcow"
+		}
+	}
+	return snapshotter
 }
