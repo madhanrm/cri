@@ -100,7 +100,9 @@ func (c *criService) execInContainer(ctx context.Context, id string, opts execOp
 	}
 	if opts.tty {
 		g := newSpecGenerator(spec)
-		g.AddProcessEnv("TERM", "xterm")
+		if spec.Linux != nil {
+			g.AddProcessEnv("TERM", "xterm")
+		}
 		spec = g.Config
 	}
 	pspec := spec.Process
