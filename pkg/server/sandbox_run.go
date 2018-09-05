@@ -19,7 +19,6 @@ package server
 import (
 	"fmt"
 	"os"
-	gruntime "runtime"
 	"strings"
 
 	"github.com/containerd/containerd"
@@ -34,6 +33,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
+	"golang.org/x/sys/unix"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 
 	"github.com/containerd/cri/pkg/annotations"
@@ -84,10 +84,9 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	)
 
 	// Ensure sandbox container image snapshot.
-	sandboxImage := c.getDefaultSandboxImage(config)
-	image, err := c.ensureImageExists(ctx, sandboxImage)
+	image, err := c.ensureImageExists(ctx, c.config.SandboxImage)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get sandbox image %q", sandboxImage)
+		return nil, errors.Wrapf(err, "failed to get sandbox image %q", c.config.SandboxImage)
 	}
 	securityContext := config.GetLinux().GetSecurityContext()
 	//Create Network Namespace if it is not in host network
@@ -172,7 +171,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	sandboxLabels := buildLabels(config.Labels, containerKindSandbox)
 
 	opts := []containerd.NewContainerOpts{
-		containerd.WithSnapshotter(c.getDefaultSnapshotterForSandbox(config)),
+		containerd.WithSnapshotter(c.config.ContainerdConfig.Snapshotter),
 		customopts.WithNewSnapshot(id, image.Image),
 		containerd.WithSpec(spec, specOpts...),
 		containerd.WithContainerLabels(sandboxLabels),
@@ -297,7 +296,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 
 		var taskOpts []containerd.NewTaskOpts
 		if c.config.NoPivot {
-			taskOpts = addOptWithNoPivotRoot(taskOpts)
+			taskOpts = append(taskOpts, containerd.WithNoPivotRoot)
 		}
 		// We don't need stdio for sandbox container.
 		task, err := container.NewTask(ctx, containerdio.NullIO, taskOpts...)
@@ -440,10 +439,6 @@ func (c *criService) generateSandboxContainerSpec(id string, config *runtime.Pod
 // setupSandboxFiles sets up necessary sandbox files including /dev/shm, /etc/hosts
 // and /etc/resolv.conf.
 func (c *criService) setupSandboxFiles(id string, config *runtime.PodSandboxConfig) error {
-	// TODO: JTERRY75 - REMOVE THIS HACK when Windows CNI is supported
-	if gruntime.GOOS == "windows" {
-		return nil
-	}
 	// TODO(random-liu): Consider whether we should maintain /etc/hosts and /etc/resolv.conf in kubelet.
 	sandboxEtcHosts := c.getSandboxHosts(id)
 	if err := c.os.CopyFile(etcHosts, sandboxEtcHosts, 0644); err != nil {
@@ -484,7 +479,7 @@ func (c *criService) setupSandboxFiles(id string, config *runtime.PodSandboxConf
 			return errors.Wrap(err, "failed to create sandbox shm")
 		}
 		shmproperty := fmt.Sprintf("mode=1777,size=%d", defaultShmSize)
-		if err := c.os.Mount("shm", sandboxDevShm, "tmpfs", uintptr(SysMS_NOEXEC|SysMS_NOSUID|SysMS_NODEV), shmproperty); err != nil {
+		if err := c.os.Mount("shm", sandboxDevShm, "tmpfs", uintptr(unix.MS_NOEXEC|unix.MS_NOSUID|unix.MS_NODEV), shmproperty); err != nil {
 			return errors.Wrap(err, "failed to mount sandbox shm")
 		}
 	}
@@ -533,10 +528,6 @@ func (c *criService) unmountSandboxFiles(id string, config *runtime.PodSandboxCo
 
 // setupPod setups up the network for a pod
 func (c *criService) setupPod(id string, path string, config *runtime.PodSandboxConfig) (string, error) {
-	// TODO: JTERRY75 - REMOVE THIS HACK when Windows CNI is supported
-	if gruntime.GOOS == "windows" {
-		return "127.0.0.1", nil
-	}
 	if c.netPlugin == nil {
 		return "", errors.New("cni config not intialized")
 	}
