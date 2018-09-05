@@ -18,7 +18,10 @@ limitations under the License.
 
 package server
 
-import runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+import (
+	"github.com/containerd/containerd/platforms"
+	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+)
 
 // isApparmorEnabled is not supported on Windows.
 func isApparmorEnabled() bool {
@@ -35,23 +38,24 @@ func doSelinux(enable bool) {
 }
 
 func (c *criService) getDefaultSnapshotterForSandbox(cfg *runtime.PodSandboxConfig) string {
-	snapshotter := c.config.ContainerdConfig.Snapshotter
-	if cfg != nil {
-		plat, ok := cfg.Labels["sandbox-platform"]
-		if ok && plat == "linux/amd64" {
-			snapshotter = "windows-lcow"
-		}
+	if getDefaultPlatform(cfg) == "linux/amd64" {
+		return "windows-lcow"
 	}
-	return snapshotter
+	return c.config.ContainerdConfig.Snapshotter
 }
 
 func (c *criService) getDefaultSandboxImage(cfg *runtime.PodSandboxConfig) string {
-	img := c.config.SandboxImage
+	if getDefaultPlatform(cfg) == "linux/amd64" {
+		return "k8s.gcr.io/pause:3.1"
+	}
+	return c.config.SandboxImage
+}
+
+func getDefaultPlatform(cfg *runtime.PodSandboxConfig) string {
 	if cfg != nil {
-		plat, ok := cfg.Labels["sandbox-platform"]
-		if ok && plat == "linux/amd64" {
-			img = "k8s.gcr.io/pause:3.1"
+		if plat, ok := cfg.Labels["sandbox-platform"]; ok {
+			return plat
 		}
 	}
-	return img
+	return platforms.DefaultString()
 }

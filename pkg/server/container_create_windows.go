@@ -19,34 +19,274 @@ limitations under the License.
 package server
 
 import (
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/oci"
+	"github.com/containerd/typeurl"
+	"github.com/davecgh/go-spew/spew"
+	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
+	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+
+	"github.com/containerd/cri/pkg/annotations"
+	customopts "github.com/containerd/cri/pkg/containerd/opts"
+	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
+	cio "github.com/containerd/cri/pkg/server/io"
+	containerstore "github.com/containerd/cri/pkg/store/container"
+	"github.com/containerd/cri/pkg/util"
 )
 
-// generateSeccompSpecOpts unsupported on Windows.
-func generateSeccompSpecOpts(seccompProf string, privileged, seccompEnabled bool) (oci.SpecOpts, error) {
-	return nil, nil
+func init() {
+	typeurl.Register(&containerstore.Metadata{},
+		"github.com/containerd/cri/pkg/store/container", "Metadata")
 }
 
-// generateApparmorSpecOpts unsupported on Windows.
-func generateApparmorSpecOpts(apparmorProf string, privileged, apparmorEnabled bool) (oci.SpecOpts, error) {
-	return nil, nil
+// CreateContainer creates a new container in the given PodSandbox.
+func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateContainerRequest) (_ *runtime.CreateContainerResponse, retErr error) {
+	config := r.GetConfig()
+	sandboxConfig := r.GetSandboxConfig()
+	sandbox, err := c.sandboxStore.Get(r.GetPodSandboxId())
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to find sandbox id %q", r.GetPodSandboxId())
+	}
+	sandboxID := sandbox.ID
+	s, err := sandbox.Container.Task(ctx, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get sandbox container task")
+	}
+	sandboxPid := s.Pid()
+
+	// Generate unique id and name for the container and reserve the name.
+	// Reserve the container name to avoid concurrent `CreateContainer` request creating
+	// the same container.
+	id := util.GenerateID()
+	name := makeContainerName(config.GetMetadata(), sandboxConfig.GetMetadata())
+	logrus.Debugf("Generated id %q for container %q", id, name)
+	if err = c.containerNameIndex.Reserve(name, id); err != nil {
+		return nil, errors.Wrapf(err, "failed to reserve container name %q", name)
+	}
+	defer func() {
+		// Release the name if the function returns with an error.
+		if retErr != nil {
+			c.containerNameIndex.ReleaseByName(name)
+		}
+	}()
+
+	// Create initial internal container metadata.
+	meta := containerstore.Metadata{
+		ID:        id,
+		Name:      name,
+		SandboxID: sandboxID,
+		Config:    config,
+	}
+
+	// Prepare container image snapshot. For container, the image should have
+	// been pulled before creating the container, so do not ensure the image.
+	imageRef := config.GetImage().GetImage()
+	image, err := c.localResolve(ctx, imageRef)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to resolve image %q", imageRef)
+	}
+	if image == nil {
+		return nil, errors.Errorf("image %q not found", imageRef)
+	}
+
+	// Run container using the same runtime with sandbox.
+	sandboxInfo, err := sandbox.Container.Info(ctx)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get sandbox %q info", sandboxID)
+	}
+	ociRuntime, err := getRuntimeConfigFromContainerInfo(sandboxInfo)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get OCI runtime")
+	}
+	logrus.Debugf("Use OCI %+v for container %q", ociRuntime, id)
+
+	// Create container root directory.
+	containerRootDir := c.getContainerRootDir(id)
+	if err = c.os.MkdirAll(containerRootDir, 0755); err != nil {
+		return nil, errors.Wrapf(err, "failed to create container root directory %q",
+			containerRootDir)
+	}
+	defer func() {
+		if retErr != nil {
+			// Cleanup the container root directory.
+			if err = c.os.RemoveAll(containerRootDir); err != nil {
+				logrus.WithError(err).Errorf("Failed to remove container root directory %q",
+					containerRootDir)
+			}
+		}
+	}()
+	volatileContainerRootDir := c.getVolatileContainerRootDir(id)
+	if err = c.os.MkdirAll(volatileContainerRootDir, 0755); err != nil {
+		return nil, errors.Wrapf(err, "failed to create volatile container root directory %q",
+			volatileContainerRootDir)
+	}
+	defer func() {
+		if retErr != nil {
+			// Cleanup the volatile container root directory.
+			if err = c.os.RemoveAll(volatileContainerRootDir); err != nil {
+				logrus.WithError(err).Errorf("Failed to remove volatile container root directory %q",
+					volatileContainerRootDir)
+			}
+		}
+	}()
+
+	spec, err := c.generateContainerSpec(id, sandboxID, sandboxPid, config, sandboxConfig, &image.ImageSpec.Config, nil)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to generate container %q spec", id)
+	}
+
+	logrus.Debugf("Container %q spec: %#+v", id, spew.NewFormatter(spec))
+
+	// Set snapshotter before any other options.
+	opts := []containerd.NewContainerOpts{
+		containerd.WithSnapshotter(c.getDefaultSnapshotterForSandbox(sandboxConfig)),
+		customopts.WithNewSnapshot(id, image.Image),
+	}
+
+	meta.ImageRef = image.ID
+
+	// Get container log path.
+	if config.GetLogPath() != "" {
+		meta.LogPath = filepath.Join(sandbox.Config.GetLogDirectory(), config.GetLogPath())
+	}
+
+	containerIO, err := cio.NewContainerIO(id,
+		cio.WithNewFIFOs(volatileContainerRootDir, config.GetTty(), config.GetStdin()))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create container io")
+	}
+	defer func() {
+		if retErr != nil {
+			if err := containerIO.Close(); err != nil {
+				logrus.WithError(err).Errorf("Failed to close container io %q", id)
+			}
+		}
+	}()
+
+	containerLabels := buildLabels(config.Labels, containerKindContainer)
+	opts = append(opts,
+		containerd.WithSpec(spec),
+		containerd.WithContainerLabels(containerLabels),
+		containerd.WithContainerExtension(containerMetadataExtension, &meta))
+
+	var cntr containerd.Container
+	if cntr, err = c.client.NewContainer(ctx, id, opts...); err != nil {
+		return nil, errors.Wrap(err, "failed to create containerd container")
+	}
+	defer func() {
+		if retErr != nil {
+			deferCtx, deferCancel := ctrdutil.DeferContext()
+			defer deferCancel()
+			if err := cntr.Delete(deferCtx, containerd.WithSnapshotCleanup); err != nil {
+				logrus.WithError(err).Errorf("Failed to delete containerd container %q", id)
+			}
+		}
+	}()
+
+	status := containerstore.Status{CreatedAt: time.Now().UnixNano()}
+	container, err := containerstore.NewContainer(meta,
+		containerstore.WithStatus(status, containerRootDir),
+		containerstore.WithContainer(cntr),
+		containerstore.WithContainerIO(containerIO),
+	)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create internal container object for %q", id)
+	}
+	defer func() {
+		if retErr != nil {
+			// Cleanup container checkpoint on error.
+			if err := container.Delete(); err != nil {
+				logrus.WithError(err).Errorf("Failed to cleanup container checkpoint for %q", id)
+			}
+		}
+	}()
+
+	// Add container into container store.
+	if err := c.containerStore.Add(container); err != nil {
+		return nil, errors.Wrapf(err, "failed to add container %q into store", id)
+	}
+
+	return &runtime.CreateContainerResponse{ContainerId: id}, nil
 }
 
-// addDevices set device mapping without privilege.
-func (c *criService) addOCIDevices(g *generate.Generator, devs []*runtime.Device) error {
-	// TODO: JTERRY75 - WCOW/LCOW support
+func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxPid uint32, config *runtime.ContainerConfig,
+	sandboxConfig *runtime.PodSandboxConfig, imageConfig *imagespec.ImageConfig, extraMounts []*runtime.Mount) (*runtimespec.Spec, error) {
+	// Creates a spec Generator with the default spec.
+	ctx := ctrdutil.NamespacedContext()
+	spec, err := oci.GenerateSpecWithPlatform(ctx, nil, getDefaultPlatform(sandboxConfig), &containers.Container{ID: id})
+	if err != nil {
+		return nil, err
+	}
+	g := newSpecGenerator(spec)
+
+	if err := setOCIProcessArgs(&g, config, imageConfig); err != nil {
+		return nil, err
+	}
+
+	if config.GetWorkingDir() != "" {
+		g.SetProcessCwd(config.GetWorkingDir())
+	} else if imageConfig.WorkingDir != "" {
+		g.SetProcessCwd(imageConfig.WorkingDir)
+	}
+
+	g.SetProcessTerminal(config.GetTty())
+
+	// Apply envs from image config first, so that envs from container config
+	// can override them.
+	if err := addImageEnvs(&g, imageConfig.Env); err != nil {
+		return nil, err
+	}
+	for _, e := range config.GetEnvs() {
+		g.AddProcessEnv(e.GetKey(), e.GetValue())
+	}
+
+	g.AddAnnotation(annotations.ContainerType, annotations.ContainerTypeContainer)
+	g.AddAnnotation(annotations.SandboxID, sandboxID)
+
+	return g.Config, nil
+}
+
+// setOCIProcessArgs sets process args. It returns error if the final arg list
+// is empty.
+func setOCIProcessArgs(g *generate.Generator, config *runtime.ContainerConfig, imageConfig *imagespec.ImageConfig) error {
+	command, args := config.GetCommand(), config.GetArgs()
+	// The following logic is migrated from https://github.com/moby/moby/blob/master/daemon/commit.go
+	// TODO(random-liu): Clearly define the commands overwrite behavior.
+	if len(command) == 0 {
+		// Copy array to avoid data race.
+		if len(args) == 0 {
+			args = append([]string{}, imageConfig.Cmd...)
+		}
+		if command == nil {
+			command = append([]string{}, imageConfig.Entrypoint...)
+		}
+	}
+	if len(command) == 0 && len(args) == 0 {
+		return errors.New("no command specified")
+	}
+	g.SetProcessArgs(append(command, args...))
 	return nil
 }
 
-// addDevices set device mapping with privilege.
-func setOCIDevicesPrivileged(g *generate.Generator) error {
-	// TODO: JTERRY75 - WCOW/LCOW support
-	return nil
-}
-
-// doSelinuxRelabel not supported on Windows.
-func doSelinuxRelable(path string, fileLabel string, shared bool) error {
+// addImageEnvs adds environment variables from image config. It returns error if
+// an invalid environment variable is encountered.
+func addImageEnvs(g *generate.Generator, imageEnvs []string) error {
+	for _, e := range imageEnvs {
+		kv := strings.SplitN(e, "=", 2)
+		if len(kv) != 2 {
+			return errors.Errorf("invalid environment variable %q", e)
+		}
+		g.AddProcessEnv(kv[0], kv[1])
+	}
 	return nil
 }
