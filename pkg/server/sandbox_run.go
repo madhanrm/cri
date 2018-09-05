@@ -19,6 +19,7 @@ package server
 import (
 	"fmt"
 	"os"
+	gruntime "runtime"
 	"strings"
 
 	"github.com/containerd/containerd"
@@ -83,9 +84,10 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	)
 
 	// Ensure sandbox container image snapshot.
-	image, err := c.ensureImageExists(ctx, c.config.SandboxImage)
+	sandboxImage := c.getDefaultSandboxImage(config)
+	image, err := c.ensureImageExists(ctx, sandboxImage)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get sandbox image %q", c.config.SandboxImage)
+		return nil, errors.Wrapf(err, "failed to get sandbox image %q", sandboxImage)
 	}
 	securityContext := config.GetLinux().GetSecurityContext()
 	//Create Network Namespace if it is not in host network
@@ -438,6 +440,10 @@ func (c *criService) generateSandboxContainerSpec(id string, config *runtime.Pod
 // setupSandboxFiles sets up necessary sandbox files including /dev/shm, /etc/hosts
 // and /etc/resolv.conf.
 func (c *criService) setupSandboxFiles(id string, config *runtime.PodSandboxConfig) error {
+	// TODO: JTERRY75 - REMOVE THIS HACK when Windows CNI is supported
+	if gruntime.GOOS == "windows" {
+		return nil
+	}
 	// TODO(random-liu): Consider whether we should maintain /etc/hosts and /etc/resolv.conf in kubelet.
 	sandboxEtcHosts := c.getSandboxHosts(id)
 	if err := c.os.CopyFile(etcHosts, sandboxEtcHosts, 0644); err != nil {
@@ -527,6 +533,10 @@ func (c *criService) unmountSandboxFiles(id string, config *runtime.PodSandboxCo
 
 // setupPod setups up the network for a pod
 func (c *criService) setupPod(id string, path string, config *runtime.PodSandboxConfig) (string, error) {
+	// TODO: JTERRY75 - REMOVE THIS HACK when Windows CNI is supported
+	if gruntime.GOOS == "windows" {
+		return "127.0.0.1", nil
+	}
 	if c.netPlugin == nil {
 		return "", errors.New("cni config not intialized")
 	}

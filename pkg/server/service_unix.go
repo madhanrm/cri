@@ -49,3 +49,7 @@ func doSelinux(enable bool) {
 func (c *criService) getDefaultSnapshotterForSandbox(_ *runtime.PodSandboxConfig) string {
 	return c.config.ContainerdConfig.Snapshotter
 }
+
+func (c *criService) getDefaultSandboxImage(cfg *runtime.PodSandboxConfig) string {
+	return c.config.SandboxImage
+}

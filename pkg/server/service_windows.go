@@ -44,3 +44,14 @@ func (c *criService) getDefaultSnapshotterForSandbox(cfg *runtime.PodSandboxConf
 	}
 	return snapshotter
 }
+
+func (c *criService) getDefaultSandboxImage(cfg *runtime.PodSandboxConfig) string {
+	img := c.config.SandboxImage
+	if cfg != nil {
+		plat, ok := cfg.Labels["sandbox-platform"]
+		if ok && plat == "linux/amd64" {
+			img = "k8s.gcr.io/pause:3.1"
+		}
+	}
+	return img
+}

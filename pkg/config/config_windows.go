@@ -23,9 +23,10 @@ import "github.com/containerd/containerd"
 // DefaultConfig returns default configurations of cri plugin.
 func DefaultConfig() PluginConfig {
 	return PluginConfig{
+		// TODO: JTERRY75 - Enable when we have CNI support.
 		CniConfig: CniConfig{
-			NetworkPluginBinDir:       "E:\\containerd\\data\\cni\\bin",
-			NetworkPluginConfDir:      "E:\\containerd\\data\\cni\\config",
+			NetworkPluginBinDir:       "", // "E:\\containerd\\data\\cni\\bin",
+			NetworkPluginConfDir:      "", // "E:\\containerd\\data\\cni\\config",
 			NetworkPluginConfTemplate: "",
 		},
 		ContainerdConfig: ContainerdConfig{
@@ -40,38 +41,6 @@ func DefaultConfig() PluginConfig {
 		StreamServerPort:        "0",
 		EnableTLSStreaming:      false,
 		SandboxImage:            "docker.io/microsoft/nanoserver-insider:latest", // "k8s.gcr.io/pause:3.1",
-		StatsCollectPeriod:      10,
-		MaxContainerLogLineSize: 16 * 1024,
-		Registry: Registry{
-			Mirrors: map[string]Mirror{
-				"docker.io": {
-					Endpoints: []string{"https://registry-1.docker.io"},
-				},
-			},
-		},
-	}
-}
-
-// DefaultLcowConfig returns default configurations of cri plugin for an Lcow containerd
-func DefaultLcowConfig() PluginConfig {
-	return PluginConfig{
-		CniConfig: CniConfig{
-			NetworkPluginBinDir:       "E:\\containerd\\data\\cni\\bin",
-			NetworkPluginConfDir:      "E:\\containerd\\data\\cni\\config",
-			NetworkPluginConfTemplate: "",
-		},
-		ContainerdConfig: ContainerdConfig{
-			Snapshotter: "windows-lcow",
-			DefaultRuntime: Runtime{
-				Type:   "io.containerd.runhcs.v1",
-				Engine: "",
-				Root:   "E:\\containerd\\data\\lcow",
-			},
-		},
-		StreamServerAddress:     "127.0.0.1",
-		StreamServerPort:        "0",
-		EnableTLSStreaming:      false,
-		SandboxImage:            "k8s.gcr.io/pause:3.1",
 		StatsCollectPeriod:      10,
 		MaxContainerLogLineSize: 16 * 1024,
 		Registry: Registry{

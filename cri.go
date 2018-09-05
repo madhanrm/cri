@@ -18,7 +18,6 @@ package cri
 
 import (
 	"flag"
-	"os"
 	"path/filepath"
 
 	"github.com/containerd/containerd"
@@ -30,11 +29,9 @@ import (
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/leases"
 	"github.com/containerd/containerd/log"
-	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/services"
 	"github.com/containerd/containerd/snapshots"
-	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -46,19 +43,11 @@ import (
 // TODO(random-liu): Use github.com/pkg/errors for our errors.
 // Register CRI service plugin
 func init() {
-	var config *criconfig.PluginConfig
-	if os.Getenv("cri-windows-lcow") != "" {
-		c := criconfig.DefaultLcowConfig()
-		config = &c
-	} else {
-		c := criconfig.DefaultConfig()
-		config = &c
-	}
-
+	config := criconfig.DefaultConfig()
 	plugin.Register(&plugin.Registration{
 		Type:   plugin.GRPCPlugin,
 		ID:     "cri",
-		Config: config,
+		Config: &config,
 		Requires: []plugin.Type{
 			plugin.ServicePlugin,
 		},
@@ -67,7 +56,7 @@ func init() {
 }
 
 func initCRIService(ic *plugin.InitContext) (interface{}, error) {
-	ic.Meta.Platforms = []imagespec.Platform{platforms.DefaultSpec()}
+	ic.Meta.Platforms = getPlatforms()
 	ic.Meta.Exports = map[string]string{"CRIVersion": constants.CRIVersion}
 	ctx := ic.Context
 	pluginConfig := ic.Config.(*criconfig.PluginConfig)
