@@ -1519,6 +1519,11 @@ func (g *Generator) SetWindowsHypervUntilityVMPath(path string) {
 	g.Config.Windows.HyperV.UtilityVMPath = path
 }
 
+// SetWindowsHyperV sets the g.Config.Windows.HyperV node if unset.
+func (g *Generator) SetWindowsHyperV() {
+	g.initConfigWindowsHyperV()
+}
+
 // SetWinodwsIgnoreFlushesDuringBoot sets g.Config.Winodws.IgnoreFlushesDuringBoot.
 func (g *Generator) SetWinodwsIgnoreFlushesDuringBoot(ignore bool) {
 	g.initConfigWindows()

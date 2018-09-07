@@ -23,6 +23,14 @@ import (
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 )
 
+type Isolation string
+
+const (
+	IsolationUnknown Isolation = ""
+	IsolationProcess           = "process"
+	IsolationHyperV            = "hyperv"
+)
+
 // isApparmorEnabled is not supported on Windows.
 func isApparmorEnabled() bool {
 	return false
@@ -38,14 +46,14 @@ func doSelinux(enable bool) {
 }
 
 func (c *criService) getDefaultSnapshotterForSandbox(cfg *runtime.PodSandboxConfig) string {
-	if getDefaultPlatform(cfg) == "linux/amd64" {
+	if isWindowsLcow(cfg) {
 		return "windows-lcow"
 	}
 	return c.config.ContainerdConfig.Snapshotter
 }
 
 func (c *criService) getDefaultSandboxImage(cfg *runtime.PodSandboxConfig) string {
-	if getDefaultPlatform(cfg) == "linux/amd64" {
+	if isWindowsLcow(cfg) {
 		// TODO: JTERRY75 figure out why pause container isnt working in opengcs.
 		return "docker.io/library/alpine:latest" // "k8s.gcr.io/pause:3.1"
 	}
@@ -59,4 +67,22 @@ func getDefaultPlatform(cfg *runtime.PodSandboxConfig) string {
 		}
 	}
 	return platforms.DefaultString()
+}
+
+func getDefaultIsolation(cfg *runtime.PodSandboxConfig) Isolation {
+	if cfg != nil {
+		if isolation, ok := cfg.Labels["sandbox-isolation"]; ok {
+			switch isolation {
+			case "process":
+				return IsolationProcess
+			case "hyperv":
+				return IsolationHyperV
+			}
+		}
+	}
+	return IsolationUnknown
+}
+
+func isWindowsLcow(cfg *runtime.PodSandboxConfig) bool {
+	return getDefaultPlatform(cfg) == "linux/amd64"
 }

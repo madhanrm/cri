@@ -264,7 +264,13 @@ func (c *criService) generateSandboxContainerSpec(id string, config *runtime.Pod
 	g.SetProcessArgs(append(imageConfig.Entrypoint, imageConfig.Cmd...))
 
 	// Make root of sandbox container read-only.
-	g.SetRootReadonly(true)
+	if isWindowsLcow(config) {
+		g.SetRootReadonly(true)
+	}
+
+	if getDefaultIsolation(config) == IsolationHyperV {
+		g.SetWindowsHyperV()
+	}
 
 	// Set hostname.
 	g.SetHostname(config.GetHostname())
