@@ -113,24 +113,21 @@ type Bundle struct {
 
 // Delete a bundle atomically
 func (b *Bundle) Delete() error {
-	/*
-		work, werr := os.Readlink(filepath.Join(b.Path, "work"))
-		err := os.RemoveAll(b.Path)
-		if err == nil {
-			if werr == nil {
-				return os.RemoveAll(work)
-			}
-			return nil
-		}
-		// error removing the bundle path; still attempt removing work dir
-		var err2 error
+	work, werr := os.Readlink(filepath.Join(b.Path, "work"))
+	err := os.RemoveAll(b.Path)
+	if err == nil {
 		if werr == nil {
-			err2 = os.RemoveAll(work)
-			if err2 == nil {
-				return err
-			}
+			return os.RemoveAll(work)
 		}
-		return errors.Wrapf(err, "failed to remove both bundle and workdir locations: %v", err2)
-	*/
-	return nil
+		return nil
+	}
+	// error removing the bundle path; still attempt removing work dir
+	var err2 error
+	if werr == nil {
+		err2 = os.RemoveAll(work)
+		if err2 == nil {
+			return err
+		}
+	}
+	return errors.Wrapf(err, "failed to remove both bundle and workdir locations: %v", err2)
 }
