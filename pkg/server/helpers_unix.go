@@ -19,8 +19,11 @@ limitations under the License.
 package server
 
 import (
-    "github.com/opencontainers/selinux/go-selinux/label"
+	"fmt"
+
 	"github.com/opencontainers/selinux/go-selinux"
+	"github.com/opencontainers/selinux/go-selinux/label"
+	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 )
 
 func initSelinuxOpts(selinuxOpt *runtime.SELinuxOption) (string, string, error) {

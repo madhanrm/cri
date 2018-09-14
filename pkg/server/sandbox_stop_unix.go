@@ -45,7 +45,7 @@ func (c *criService) doStopPodSandbox(id string, sandbox sandboxstore.Sandbox) e
 		In the future, once TearDownPod is idempotent, this will be fixed.*/
 
 		//Close the sandbox network namespace if it was created
-		if err = sandbox.NetNS.Remove(); err != nil {
+		if err := sandbox.NetNS.Remove(); err != nil {
 			return errors.Wrapf(err, "failed to remove network namespace for sandbox %q", id)
 		}
 	}

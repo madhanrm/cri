@@ -28,10 +28,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
 	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
-
-	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"
 )
 
 // portForward requires `socat` on the node. It uses netns to enter the sandbox namespace,
