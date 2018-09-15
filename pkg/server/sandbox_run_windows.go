@@ -275,8 +275,9 @@ func (c *criService) generateSandboxContainerSpec(id string, config *runtime.Pod
 	}
 
 	if getDefaultIsolation(config) == IsolationHyperV {
-		//g.SetWindowsHyperV()
+		g.SetWindowsHyperV()
 	}
+	g.SetWindowsNetworkNamespace(nsPath)
 
 	// Set hostname.
 	g.SetHostname(config.GetHostname())

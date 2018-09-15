@@ -19,9 +19,9 @@ limitations under the License.
 package sandbox
 
 import (
-	"math/rand"
 	"sync"
 
+	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/pkg/errors"
 )
 
@@ -38,23 +38,24 @@ type NetNS struct {
 
 // NewNetNS creates a network namespace for the sandbox
 func NewNetNS() (*NetNS, error) {
-	// TODO: JTERRY75 - Plugin cni
-	b := make([]byte, 10)
-	rand.Read(b)
-	return &NetNS{path: string(b)}, nil
+	temp := hcn.HostComputeNamespace{}
+	hcnNamespace, err := temp.Create()
+	if err != nil {
+		return nil, err
+	}
+
+	return &NetNS{path: string(hcnNamespace.Id)}, nil
 }
 
 // LoadNetNS loads existing network namespace. It returns ErrClosedNetNS
 // if the network namespace has already been closed.
 func LoadNetNS(path string) (*NetNS, error) {
-	// TODO: JTERRY75 - Plugin cni
 	return &NetNS{restored: true, path: path}, nil
 }
 
 // Remove removes network namepace if it exists and not closed. Remove is idempotent,
 // meaning it might be invoked multiple times and provides consistent result.
 func (n *NetNS) Remove() error {
-	// TODO: JTERRY75 - Plugin cni
 	n.Lock()
 	defer n.Unlock()
 	if !n.closed {
@@ -63,6 +64,11 @@ func (n *NetNS) Remove() error {
 	if n.restored {
 		n.restored = false
 	}
+	hcnNamespace, err := hcn.GetNamespaceByID(n.path)
+	if err != nil {
+		return nil
+	}
+	hcnNamespace.Delete()
 	return nil
 }
 
