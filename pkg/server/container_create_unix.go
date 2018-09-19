@@ -478,41 +478,6 @@ func (c *criService) generateContainerMounts(sandboxID string, config *runtime.C
 	return mounts
 }
 
-// setOCIProcessArgs sets process args. It returns error if the final arg list
-// is empty.
-func setOCIProcessArgs(g *generate.Generator, config *runtime.ContainerConfig, imageConfig *imagespec.ImageConfig) error {
-	command, args := config.GetCommand(), config.GetArgs()
-	// The following logic is migrated from https://github.com/moby/moby/blob/master/daemon/commit.go
-	// TODO(random-liu): Clearly define the commands overwrite behavior.
-	if len(command) == 0 {
-		// Copy array to avoid data race.
-		if len(args) == 0 {
-			args = append([]string{}, imageConfig.Cmd...)
-		}
-		if command == nil {
-			command = append([]string{}, imageConfig.Entrypoint...)
-		}
-	}
-	if len(command) == 0 && len(args) == 0 {
-		return errors.New("no command specified")
-	}
-	g.SetProcessArgs(append(command, args...))
-	return nil
-}
-
-// addImageEnvs adds environment variables from image config. It returns error if
-// an invalid environment variable is encountered.
-func addImageEnvs(g *generate.Generator, imageEnvs []string) error {
-	for _, e := range imageEnvs {
-		kv := strings.SplitN(e, "=", 2)
-		if len(kv) != 2 {
-			return errors.Errorf("invalid environment variable %q", e)
-		}
-		g.AddProcessEnv(kv[0], kv[1])
-	}
-	return nil
-}
-
 func setOCIPrivileged(g *generate.Generator, config *runtime.ContainerConfig) error {
 	// Add all capabilities in privileged mode.
 	g.SetupPrivileged(true)

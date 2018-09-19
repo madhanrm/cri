@@ -23,10 +23,9 @@ import "github.com/containerd/containerd"
 // DefaultConfig returns default configurations of cri plugin.
 func DefaultConfig() PluginConfig {
 	return PluginConfig{
-		// TODO: JTERRY75 - Enable when we have CNI support.
 		CniConfig: CniConfig{
-			NetworkPluginBinDir:       "", // "E:\\containerd\\data\\cni\\bin",
-			NetworkPluginConfDir:      "", // "E:\\containerd\\data\\cni\\config",
+			NetworkPluginBinDir:       "C:\\containerd\\data\\cni\\bin",
+			NetworkPluginConfDir:      "C:\\containerd\\data\\cni\\config",
 			NetworkPluginConfTemplate: "",
 		},
 		ContainerdConfig: ContainerdConfig{
