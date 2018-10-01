@@ -86,3 +86,15 @@ func getDefaultIsolation(cfg *runtime.PodSandboxConfig) Isolation {
 func isWindowsLcow(cfg *runtime.PodSandboxConfig) bool {
 	return getDefaultPlatform(cfg) == "linux/amd64"
 }
+
+func isIsolationVm(cfg *runtime.PodSandboxConfig) bool {
+	if cfg != nil {
+		if isolation, ok := cfg.Labels["sandbox-isolation"]; ok {
+			switch isolation {
+			case "hyperv":
+				return true
+			}
+		}
+	}
+	return false
+}

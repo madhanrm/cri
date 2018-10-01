@@ -51,6 +51,11 @@ func NewNetNS() (*NetNS, error) {
 	return n, nil
 }
 
+// NewNetVmNS creates a network namespace for the sandbox in a VM
+func NewNetVmNS() (*NetNS, error) {
+	return nil, errors.Wrap(err, "failed to setup network namespace in VM - Not supported")
+}
+
 // LoadNetNS loads existing network namespace. It returns ErrClosedNetNS
 // if the network namespace has already been closed.
 func LoadNetNS(path string) (*NetNS, error) {

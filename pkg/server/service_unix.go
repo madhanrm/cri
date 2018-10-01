@@ -49,3 +49,7 @@ func doSelinux(enable bool) {
 func (c *criService) getDefaultSnapshotterForSandbox(_ *runtime.PodSandboxConfig) string {
 	return c.config.ContainerdConfig.Snapshotter
 }
+
+func isIsolationVm(cfg *runtime.PodSandboxConfig) bool {
+	return false
+}

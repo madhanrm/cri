@@ -55,12 +55,18 @@ func parseDNSOptions(servers, searches, options []string) (string, error) {
 
 func (c *criService) setupPodNetwork(sandbox *sandboxstore.Sandbox) (retErr error) {
 	id := sandbox.Metadata.ID
-	netns, err := sandboxstore.NewNetNS()
+	config := sandbox.Metadata.Config
+
+	var err error
+	if isIsolationVm(config) {
+		sandbox.NetNS, err = sandboxstore.NewNetVmNS()
+	} else {
+		sandbox.NetNS, err = sandboxstore.NewNetNS()
+	}
 	if err != nil {
 		return errors.Wrapf(err, "failed to create network namespace for sandbox %q", id)
 	}
-	sandbox.NetNS = netns
-	config := sandbox.Metadata.Config
+
 	sandbox.NetNSPath = sandbox.NetNS.GetPath()
 	defer func() {
 		if retErr != nil {

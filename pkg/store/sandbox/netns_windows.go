@@ -47,6 +47,17 @@ func NewNetNS() (*NetNS, error) {
 	return &NetNS{path: string(hcnNamespace.Id)}, nil
 }
 
+// NewNetVmNS creates a network namespace for the sandbox
+func NewNetVmNS() (*NetNS, error) {
+	temp := hcn.HostComputeNamespace{Type: hcn.NamespaceTypeGuest}
+	hcnNamespace, err := temp.Create()
+	if err != nil {
+		return nil, err
+	}
+
+	return &NetNS{path: string(hcnNamespace.Id)}, nil
+}
+
 // LoadNetNS loads existing network namespace. It returns ErrClosedNetNS
 // if the network namespace has already been closed or not found.
 func LoadNetNS(path string) (*NetNS, error) {
